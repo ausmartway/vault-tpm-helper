@@ -16,7 +16,16 @@
       "Bash(git branch:*)",
       "Bash(git push:*)",
       "Bash(rm:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(go build:*)",
+      "Bash(./vault-tpm-helper:*)",
+      "Bash(openssl genrsa:*)",
+      "Bash(openssl req:*)",
+      "Bash(export VAULT_ADDR=https://nginx)",
+      "Bash(vault write pki/sign/machine-id:*)",
+      "Bash(vault write pki_intermediate/sign/machine-id:*)",
+      "Bash(unset:*)",
+      "Bash(./vault-tmp-helper:*)"
     ],
     "deny": [],
     "ask": []
