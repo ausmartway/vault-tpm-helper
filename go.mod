@@ -1,4 +1,4 @@
-module tpm-https-client
+module vault-tpm-helper
 
 go 1.23.0
 

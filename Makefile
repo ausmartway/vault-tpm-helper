@@ -1,6 +1,6 @@
 .PHONY: build deploy clean test run
 
-BINARY_NAME=tpm-https-client
+BINARY_NAME=vault-tpm-helper
 TARGET_HOST=tpmtest
 TARGET_USER=ubuntu
 GOOS=linux

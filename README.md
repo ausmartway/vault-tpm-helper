@@ -1,6 +1,6 @@
-# TPM HTTPS Client
+# Vault TPM Helper
 
-A Go application that performs HTTPS client certificate authentication using TPM-protected private keys on Ubuntu ARM systems.
+A Go application that performs Vault certificate authentication using TPM-protected private keys.
 
 ## Overview
 
@@ -35,7 +35,7 @@ The program expects these files to be present:
 ### Basic Usage
 
 ```bash
-./tpm-https-client
+./vault-tpm-helper
 ```
 
 This uses default settings:
@@ -47,7 +47,7 @@ This uses default settings:
 ### Command Line Options
 
 ```bash
-./tpm-https-client [options]
+./vault-tpm-helper [options]
 ```
 
 #### Options
@@ -63,7 +63,7 @@ This uses default settings:
 #### Example with Custom Settings
 
 ```bash
-./tmp-https-client \
+./vault-tpm-helper \
   -cert /path/to/my-cert.pem \
   -server https://api.example.com:8443 \
   -request payload.json \
@@ -98,7 +98,7 @@ Connection: close
 The program outputs the client token from the server response:
 
 ```bash
-$ ./tpm-https-client
+$ ./vault-tpm-helper
 hvs.CAESII8ZnxgCr-XpHnPD1ESvlizTZjMVZjrnboV9zP9htRmMGiMKHGh2cy5qN2hhY0wyR0tWME9ITUpjcjlVQXQ5M2IQl6mfBg
 ```
 
