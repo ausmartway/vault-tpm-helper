@@ -10,7 +10,11 @@
       "Bash(ssh:*)",
       "Bash(go get:*)",
       "Bash(scp:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
