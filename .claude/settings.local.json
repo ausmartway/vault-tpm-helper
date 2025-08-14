@@ -8,7 +8,9 @@
       "Bash(go mod:*)",
       "Bash(make:*)",
       "Bash(ssh:*)",
-      "Bash(go get:*)"
+      "Bash(go get:*)",
+      "Bash(scp:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

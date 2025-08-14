@@ -17,9 +17,8 @@ deploy: build
 	@echo "Deployment complete"
 
 test:
-	@echo "Running validation test with OpenSSL TPM2 provider..."
-	@echo "Reference command:"
-	@echo "cat nginx.txt|openssl s_client -provider tpm2 -provider default -propquery '?provider=tpm2' -connect nginx:443 -cert tpmtest.cert.pem -key tpmtest.key.pem -quiet| awk '/^HTTP/ {p=1} p {print}' | awk 'BEGIN {RS=\"\\r\\n\\r\\n\"} NR==2 {print}' | jq .auth.client_token"
+	@echo "Running vault-tpm-helper validation..."
+	@echo "Usage: ./$(BINARY_NAME) -vaultaddr https://vault-server"
 
 run: deploy
 	@echo "Running on remote host..."

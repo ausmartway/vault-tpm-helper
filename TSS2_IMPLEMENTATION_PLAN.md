@@ -2,7 +2,7 @@
 
 ## Current Problem
 
-The Go program creates a new TPM key instead of using the existing `tpmtest.key.pem` file, which is in TSS2 format:
+The Go program creates a new TPM key instead of using the existing `client.key.pem` file, which is in TSS2 format:
 
 ```text
 -----BEGIN TSS2 PRIVATE KEY-----
@@ -131,7 +131,7 @@ require (
 1. **Build**: `make build`
 2. **Deploy**: `make deploy` 
 3. **Test**: `ssh ubuntu@tpmtest "./tpm-https-client"`
-4. **Verify**: Compare output with OpenSSL reference command
+4. **Verify**: Test the authentication and token extraction
 
 ### Step 9: Handle Potential Issues
 
@@ -143,33 +143,20 @@ require (
 **Fallback Options:**
 - Use `tpm2tools` package from go-tpm-tools
 - Implement direct PEM parsing if needed
-- Use openssl command execution as bridge
+- Use direct TPM integration
 
 ### Step 10: Validation
 
-The implementation should produce the same result as:
-
-```bash
-cat nginx.txt | openssl s_client \
-  -provider tpm2 -provider default \
-  -propquery '?provider=tpm2' \
-  -connect nginx:443 \
-  -cert tpmtest.cert.pem \
-  -key tpmtest.key.pem \
-  -quiet | \
-  awk '/^HTTP/ {p=1} p {print}' | \
-  awk 'BEGIN {RS="\r\n\r\n"} NR==2 {print}' | \
-  jq .auth.client_token
-```
+The implementation authenticates directly with Vault using TPM-backed client certificates and extracts the client token from the JSON response.
 
 ## Expected Outcome
 
 After implementation:
-- ✅ Uses existing `tpmtest.key.pem` TSS2 format key
+- ✅ Uses existing `client.key.pem` TSS2 format key
 - ✅ Key matches the certificate exactly  
 - ✅ TLS handshake succeeds
 - ✅ Extracts `auth.client_token` from JSON response
-- ✅ Produces same result as OpenSSL validation command
+- ✅ Produces client token from Vault authentication
 
 ## Implementation Priority
 

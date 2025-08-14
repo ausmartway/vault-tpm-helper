@@ -25,6 +25,8 @@ type Config struct {
 	ServerURL string
 	CAPath    string
 	AuthPath  string
+	Name      string
+	Debug     bool
 }
 
 type AuthResponse struct {
@@ -37,17 +39,24 @@ func main() {
 	config := &Config{}
 
 	flag.StringVar(&config.TPMPath, "tpm-path", "/dev/tpmrm0", "Path to TPM device")
-	flag.StringVar(&config.CertPath, "cert", "tpmtest.cert.pem", "Path to client certificate")
-	flag.StringVar(&config.KeyPath, "key", "tpmtest.key.pem", "Path to client private key")
-	// Get default server URL from VAULT_ADDR environment variable, fallback to nginx:443
-	defaultServerURL := os.Getenv("VAULT_ADDR")
-	if defaultServerURL == "" {
-		defaultServerURL = "https://nginx:443"
-	}
-	flag.StringVar(&config.ServerURL, "server", defaultServerURL, "Target HTTPS server URL")
+	flag.StringVar(&config.CertPath, "client-cert", "client.cert.pem", "Path to client certificate")
+	flag.StringVar(&config.KeyPath, "client-key", "client.key.pem", "Path to client private key")
+	flag.StringVar(&config.ServerURL, "vaultaddr", "", "Vault server URL (optional if VAULT_ADDR env var is set)")
 	flag.StringVar(&config.CAPath, "ca", "", "Path to CA certificate bundle (optional)")
 	flag.StringVar(&config.AuthPath, "authpath", "cert", "Vault authentication path")
+	flag.StringVar(&config.Name, "name", "", "Name parameter for authentication (optional)")
+	flag.BoolVar(&config.Debug, "debug", false, "Enable debug output")
 	flag.Parse()
+
+	// Determine vault URL: VAULT_ADDR env var takes precedence, then vaultaddr flag
+	vaultURL := os.Getenv("VAULT_ADDR")
+	if vaultURL == "" {
+		vaultURL = config.ServerURL
+	}
+	if vaultURL == "" {
+		log.Fatalf("Error: Vault URL must be provided via VAULT_ADDR environment variable or -vaultaddr flag")
+	}
+	config.ServerURL = vaultURL
 
 	if err := run(config); err != nil {
 		log.Fatalf("Error: %v", err)
@@ -63,7 +72,7 @@ func run(config *Config) error {
 	}
 
 	// Create TPM signer using TSS2 key
-	tmpSigner, err := createTPMSigner(config.TPMPath, config.KeyPath)
+	tmpSigner, err := createTPMSigner(config.TPMPath, config.KeyPath, config.Debug)
 	if err != nil {
 		return fmt.Errorf("failed to create TPM signer: %w", err)
 	}
@@ -97,11 +106,11 @@ func run(config *Config) error {
 		},
 	}
 
-	// Build the authentication URL path using the authpath parameter  
+	// Build the authentication URL path using the authpath parameter
 	authURL := fmt.Sprintf("%s/v1/auth/%s/login", config.ServerURL, config.AuthPath)
-	
+
 	// Create the request body
-	jsonBody := []byte(`{"name": ""}`)
+	jsonBody := []byte(fmt.Sprintf(`{"name": "%s"}`, config.Name))
 
 	// Make request
 	resp, err := httpClient.Post(authURL, "application/json", bytes.NewReader(jsonBody))
@@ -147,7 +156,7 @@ func loadCertificate(certPath string) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-func createTPMSigner(tmpPath, keyPath string) (crypto.Signer, error) {
+func createTPMSigner(tpmPath, keyPath string, debug bool) (crypto.Signer, error) {
 	// 1. Read TSS2 key PEM file
 	keyPEM, err := os.ReadFile(keyPath)
 	if err != nil {
@@ -161,7 +170,7 @@ func createTPMSigner(tmpPath, keyPath string) (crypto.Signer, error) {
 	}
 
 	// 3. Open TPM transport (keep connection open for signer)
-	rwc, err := transport.OpenTPM(tmpPath)
+	rwc, err := transport.OpenTPM(tpmPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open TPM: %w", err)
 	}
@@ -174,6 +183,8 @@ func createTPMSigner(tmpPath, keyPath string) (crypto.Signer, error) {
 		return nil, fmt.Errorf("failed to create signer: %w", err)
 	}
 
-	fmt.Printf("Debug: Successfully loaded TSS2 key from %s\n", keyPath)
+	if debug {
+		fmt.Printf("Debug: Successfully loaded TSS2 key from %s\n", keyPath)
+	}
 	return signer, nil
 }

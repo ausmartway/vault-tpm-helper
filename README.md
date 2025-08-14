@@ -6,7 +6,7 @@ A Go application that performs Vault certificate authentication using TPM-protec
 
 This program uses a Trusted Platform Module (TPM) 2.0 to securely store and use private keys for client certificate authentication when connecting to HTTPS servers. The private key never leaves the TPM hardware, providing enhanced security.
 
-**Note**: The current implementation creates a new TPM attestation key rather than loading the existing TSS2-format key from `tpmtest.key.pem`. This demonstrates the TPM integration concept while the TSS2 key loading functionality is still being refined.
+**Note**: The implementation properly loads the existing TSS2-format key from `client.key.pem` and uses it with the corresponding certificate for TPM-backed authentication.
 
 ## Prerequisites
 
@@ -27,8 +27,8 @@ sudo apt install -y tpm2-tools libtpm2-pkcs11-1 libtpm2-pkcs11-dev
 ### File Requirements
 
 The program expects these files to be present:
-- `tpmtest.cert.pem` - Client certificate in PEM format
-- `nginx.txt` - Request payload data
+- `client.cert.pem` - Client certificate in PEM format
+- `client.key.pem` - Client private key in TSS2 format
 
 ## Usage
 
@@ -39,10 +39,10 @@ The program expects these files to be present:
 ```
 
 This uses default settings:
-- Certificate: `tpmtest.cert.pem`
-- Server: `https://nginx:443`
-- Request data: `nginx.txt`
-- TPM device: `/dev/tpm0`
+- Certificate: `client.cert.pem`
+- Private key: `client.key.pem`
+- Vault URL: from VAULT_ADDR environment variable or `https://nginx:443`
+- TPM device: `/dev/tpmrm0`
 
 ### Command Line Options
 
@@ -54,35 +54,31 @@ This uses default settings:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-cert` | `tpmtest.cert.pem` | Path to client certificate file |
-| `-server` | `https://nginx:443` | Target HTTPS server URL |
-| `-request` | `nginx.txt` | Request data file path |
-| `-tpm-path` | `/dev/tpm0` | Path to TPM device |
+| `-client-key` | `client.key.pem` | Path to client private key |
+|------|---------|-------------|
+| `-client-cert` | `client.cert.pem` | Path to client certificate file |
+| `-vaultaddr` | VAULT_ADDR env var | Vault server URL (optional if VAULT_ADDR is set) |
+| `-tmp-path` | `/dev/tmperm0` | Path to TPM device (optional) |
 | `-ca` | _(none)_ | Path to CA certificate bundle (optional) |
+| `-authpath` | `cert` | Vault authentication path |
+| `-name` | `""` | Name parameter for authentication (optional) |
+| `-debug` | `false` | Enable debug output (optional) |
 
 #### Example with Custom Settings
 
 ```bash
 ./vault-tpm-helper \
   -cert /path/to/my-cert.pem \
-  -server https://api.example.com:8443 \
-  -request payload.json \
+  -vaultaddr https://api.example.com:8443 \
   -ca /etc/ssl/certs/ca-bundle.pem
 ```
 
-### Sample Request File
+### Request Format
 
-The `nginx.txt` file should contain the complete HTTP request:
-
-```
-POST /v1/auth/cert/login HTTP/1.1
-Host: nginx:443
-Content-Type: application/json
-Content-Length: 13
-Connection: close
-
-{"name": ""}
-```
+The program automatically constructs the authentication request with:
+- URL path: `/v1/auth/{authpath}/login`
+- Content-Type: `application/json`
+- Body: `{"name": "{name}"}`
 
 ## How It Works
 
@@ -104,39 +100,21 @@ hvs.CAESII8ZnxgCr-XpHnPD1ESvlizTZjMVZjrnboV9zP9htRmMGiMKHGh2cy5qN2hhY0wyR0tWME9I
 
 ## Validation
 
-You can validate the setup using OpenSSL with the TPM2 provider:
-
-```bash
-cat nginx.txt | openssl s_client \
-  -provider tpm2 \
-  -provider default \
-  -propquery '?provider=tpm2' \
-  -connect nginx:443 \
-  -cert tpmtest.cert.pem \
-  -key tpmtest.key.pem \
-  -quiet | \
-  awk '/^HTTP/ {p=1} p {print}' | \
-  awk 'BEGIN {RS="\r\n\r\n"} NR==2 {print}' | \
-  jq .auth.client_token
-```
-
-This command should produce the same client token format.
+The program performs TPM-backed client certificate authentication directly. The output shows the extracted client token from the Vault authentication response.
 
 ## Current Limitations
 
-- **TSS2 Key Loading**: The program currently creates a new TPM attestation key instead of loading the existing TSS2-format key from `tpmtest.key.pem`. This means the key won't match the certificate exactly.
-- **Certificate Mismatch**: Since a new key is generated, it won't match the provided certificate, which may cause TLS handshake failures.
+- **TSS2 Key Loading**: The program now properly loads the existing TSS2-format key from `client.key.pem` and matches it with the corresponding certificate.
+- **Certificate Match**: The program uses the existing TPM-protected key that matches the provided certificate.
 
-## Working Alternative
+## Working Implementation
 
-For demonstration purposes, to see the TPM integration working:
+The program uses the existing TPM-protected key and certificate for authentication:
 
-1. Generate a new certificate that matches the TPM key:
-```bash
-# This would require additional certificate generation steps
-```
-
-2. Or use the proven OpenSSL method shown in the validation section above.
+1. Loads the TSS2 format private key from TPM
+2. Uses the matching client certificate
+3. Performs mutual TLS authentication with Vault
+4. Extracts and displays the client token
 
 ## Troubleshooting
 
