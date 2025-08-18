@@ -39,7 +39,8 @@
       "Bash(goreleaser:*)",
       "Bash(git commit:*)",
       "Bash(true)",
-      "Bash(GITHUB_USER=ausmartway goreleaser release --clean)"
+      "Bash(GITHUB_USER=ausmartway goreleaser release --clean)",
+      "Bash(GITHUB_USER=ausmartway goreleaser release --clean --skip=validate)"
     ],
     "deny": [],
     "ask": [],
