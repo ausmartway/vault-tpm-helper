@@ -87,7 +87,7 @@ func run(config *Config) error {
 	// Configure TLS
 	tlsConfig := &tls.Config{
 		Certificates:       []tls.Certificate{tlsCert},
-		InsecureSkipVerify: true, // For testing - should be removed in production
+		InsecureSkipVerify: false, // For testing - should be removed in production
 	}
 
 	if config.Debug {
@@ -221,6 +221,7 @@ func isTSS2Key(keyPath string) (bool, error) {
 	}
 
 	// Also check if the content looks like TSS2 format by trying to decode it
+	// This works for both RSA and ECC TSS2 keys
 	if strings.Contains(block.Type, "PRIVATE KEY") {
 		_, err := keyfile.Decode(keyPEM)
 		if err == nil {

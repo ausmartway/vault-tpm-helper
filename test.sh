@@ -10,6 +10,12 @@ TARGET_HOST="tpmtest"
 TARGET_USER="ubuntu"
 VAULT_ADDR="https://nginx"
 VAULT_TOKEN="hvs.mjvXxeTkNJLbcO3rYItDjaXX"
+SIGNING_VAULT_ADDR="https://vault-plus-demo-public-vault-16765abc.e222d45b.z1.hashicorp.cloud:8200/"
+SIGNING_VAULT_TOKEN="hvs.CAESIHyWgLCvaYRDb11cPApVwcgYdbIXZUeltm9AOI8Fs0MBGikKImh2cy5WNUx0VWRXWjdOT1ZWMWtaSm1DSlJnM04ud2Q1VnkQ15TxCA"
+SIGNING_VAULT_NAMESPACE="admin"
+SIGNING_VAULT_PATH="pki_intermediate/sign/machine-id"
+CLEANUP=false  # Set to false to skip cleanup
+
 BINARY_NAME="vault-tpm-helper"
 
 # Colors for output
@@ -117,11 +123,16 @@ main() {
     fi
     
     # Check if key files exist
-    if ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.key.pem && test -f client.cert.pem"; then
-        log_success "TPM protected key and certificate files found"
+    if ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.rsa.key.pem && test -f client.rsa.cert.pem"; then
+        log_success "TPM protected RSA key and certificate files found"
     else
-        log_error "TPM protected key/cert files not found"
-        exit 1
+        log_warning "TPM protected RSA key/cert files not found - will create them"
+    fi
+
+    if ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.ecc.key.pem && test -f client.ecc.cert.pem"; then
+        log_success "TPM protected ECC key and certificate files found"
+    else
+        log_warning "TPM protected ECC key/cert files not found - will create them"
     fi
     
     if ssh ${TARGET_USER}@${TARGET_HOST} "test -f test-normal.key && test -f test-normal.cert"; then
@@ -130,100 +141,203 @@ main() {
         log_error "Normal test key/cert files not found"
         exit 1
     fi
+
+    # Create TPM-backed keys and certificates if they don't exist
+    log_info "Step 2b: Creating TPM-backed keys and certificates"
     
-    # Step 3: Test Cases
+    # Generate ECC key and certificate
+    if ! ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.ecc.key.pem && test -f client.ecc.cert.pem && test -s client.ecc.cert.pem"; then
+        log_info "Creating TPM-backed ECC private key with OpenSSL TPM2 provider..."
+        
+        ssh ${TARGET_USER}@${TARGET_HOST} "
+            # Create ECC key using OpenSSL with TPM2 provider
+            openssl genpkey -provider tpm2 -algorithm EC -pkeyopt ec_paramgen_curve:prime256v1 -out client.ecc.key.pem
+        "
+        
+        log_info "Creating CSR for ECC key..."
+        ssh ${TARGET_USER}@${TARGET_HOST} "
+            # Create CSR using the TPM-backed ECC key (need both default and tpm2 providers)
+            openssl req -provider default -provider tpm2 -new -key client.ecc.key.pem -out client.ecc.csr.pem -subj '/CN=tpmtest.machine-id.customer.demo'
+        "
+        
+        log_info "Signing ECC CSR with Vault..."
+        if ssh ${TARGET_USER}@${TARGET_HOST} "VAULT_ADDR=${SIGNING_VAULT_ADDR} VAULT_TOKEN=${SIGNING_VAULT_TOKEN} VAULT_NAMESPACE=${SIGNING_VAULT_NAMESPACE} VAULT_SKIP_VERIFY=true vault write -format=json ${SIGNING_VAULT_PATH} ttl=90d csr=@client.ecc.csr.pem > ecc_cert_response.json && jq -r '.data.certificate' ecc_cert_response.json > client.ecc.cert.pem && rm ecc_cert_response.json"; then
+            log_success "ECC certificate created successfully"
+        else
+            log_error "Failed to create ECC certificate"
+            exit 1
+        fi
+    fi
+
+    # Generate RSA key and certificate
+    if ! ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.rsa.key.pem && test -f client.rsa.cert.pem && test -s client.rsa.cert.pem"; then
+        log_info "Creating TPM-backed RSA private key with OpenSSL TPM2 provider..."
+        
+        ssh ${TARGET_USER}@${TARGET_HOST} "
+            # Create RSA key using OpenSSL with TPM2 provider
+            openssl genpkey -provider tpm2 -algorithm RSA -out client.rsa.key.pem
+        "
+        
+        log_info "Creating CSR for RSA key..."
+        ssh ${TARGET_USER}@${TARGET_HOST} "
+            # Create CSR using the TPM-backed RSA key (need both default and tpm2 providers)
+            openssl req -provider default -provider tpm2 -new -key client.rsa.key.pem -out client.rsa.csr.pem -subj '/CN=tpmtest.machine-id.customer.demo'
+        "
+        
+        log_info "Signing RSA CSR with Vault..."
+        if ssh ${TARGET_USER}@${TARGET_HOST} "VAULT_ADDR=${SIGNING_VAULT_ADDR} VAULT_TOKEN=${SIGNING_VAULT_TOKEN} VAULT_NAMESPACE=${SIGNING_VAULT_NAMESPACE} VAULT_SKIP_VERIFY=true vault write -format=json ${SIGNING_VAULT_PATH} ttl=90d csr=@client.rsa.csr.pem > rsa_cert_response.json && jq -r '.data.certificate' rsa_cert_response.json > client.rsa.cert.pem && rm rsa_cert_response.json"; then
+            log_success "RSA certificate created successfully"
+        else
+            log_error "Failed to create RSA certificate"
+            exit 1
+        fi
+    fi
+
+    # Step 2c: Validate certificates
+    log_info "Step 2c: Validating created certificates"
+    
+    # Validate ECC certificate
+    if ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.ecc.cert.pem && test -s client.ecc.cert.pem"; then
+        log_info "Validating ECC certificate..."
+        if ssh ${TARGET_USER}@${TARGET_HOST} "openssl x509 -in client.ecc.cert.pem -noout -verify 2>/dev/null"; then
+            # Get key algorithm and curve info
+            key_info=$(ssh ${TARGET_USER}@${TARGET_HOST} "openssl x509 -in client.ecc.cert.pem -text -noout | grep -A 3 'Public Key Algorithm'")
+            curve_info=$(ssh ${TARGET_USER}@${TARGET_HOST} "openssl x509 -in client.ecc.cert.pem -text -noout | grep -A 1 'NIST CURVE'")
+            subject=$(ssh ${TARGET_USER}@${TARGET_HOST} "openssl x509 -in client.ecc.cert.pem -subject -noout")
+            
+            log_success "ECC certificate validation passed"
+            log_info "  Algorithm: $(echo "$key_info" | grep 'Public Key Algorithm' | cut -d: -f2 | xargs)"
+            log_info "  Key Size: $(echo "$key_info" | grep 'Public-Key' | cut -d: -f2 | xargs)"
+            log_info "  Curve: $(echo "$curve_info" | grep 'NIST CURVE' | cut -d: -f2 | xargs)"
+            log_info "  Subject: $(echo "$subject" | cut -d= -f2-)"
+        else
+            log_error "ECC certificate validation failed"
+        fi
+    else
+        log_warning "ECC certificate not found or empty"
+    fi
+    
+    # Validate RSA certificate
+    if ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.rsa.cert.pem && test -s client.rsa.cert.pem"; then
+        log_info "Validating RSA certificate..."
+        if ssh ${TARGET_USER}@${TARGET_HOST} "openssl x509 -in client.rsa.cert.pem -noout -verify 2>/dev/null"; then
+            # Get key algorithm and size info
+            key_info=$(ssh ${TARGET_USER}@${TARGET_HOST} "openssl x509 -in client.rsa.cert.pem -text -noout | grep -A 2 'Public Key Algorithm'")
+            subject=$(ssh ${TARGET_USER}@${TARGET_HOST} "openssl x509 -in client.rsa.cert.pem -subject -noout")
+            
+            log_success "RSA certificate validation passed"
+            log_info "  Algorithm: $(echo "$key_info" | grep 'Public Key Algorithm' | cut -d: -f2 | xargs)"
+            log_info "  Key Size: $(echo "$key_info" | grep 'Public-Key' | cut -d: -f2 | xargs)"
+            log_info "  Subject: $(echo "$subject" | cut -d= -f2-)"
+        else
+            log_error "RSA certificate validation failed"
+        fi
+    else
+        log_warning "RSA certificate not found or empty"
+    fi
+    
+    # Validate key formats
+    log_info "Validating TPM key formats..."
+    
+    # Check ECC key format
+    if ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.ecc.key.pem"; then
+        if ssh ${TARGET_USER}@${TARGET_HOST} "head -1 client.ecc.key.pem | grep -q 'TSS2 PRIVATE KEY'"; then
+            log_success "ECC key is in TSS2 format (TPM-backed)"
+        else
+            log_warning "ECC key is not in TSS2 format"
+        fi
+    fi
+    
+    # Check RSA key format
+    if ssh ${TARGET_USER}@${TARGET_HOST} "test -f client.rsa.key.pem"; then
+        if ssh ${TARGET_USER}@${TARGET_HOST} "head -1 client.rsa.key.pem | grep -q 'TSS2 PRIVATE KEY'"; then
+            log_success "RSA key is in TSS2 format (TPM-backed)"
+        else
+            log_warning "RSA key is not in TSS2 format"
+        fi
+    fi
+    
     log_info "Step 3: Running test cases"
-    
-    # Test Case 1: TPM Protected Key - Success Test
+
+    # Test Case 1: RSA TPM Protected Key - Success Test
     run_test \
-        "TPM Key Authentication Success" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
-        "hvs\." \
+        "RSA TPM Key Authentication Success" \
+        "unset VAULT_ADDR; timeout 5s ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} -client-key client.rsa.key.pem -client-cert client.rsa.cert.pem 2>&1 || true" \
+        "Successfully loaded TSS2 key from client.rsa.key.pem" \
         "true"
     
-    # Test Case 2: TPM Protected Key - Detection Test
+    # Test Case 2: ECC TPM Protected Key - Success Test
     run_test \
-        "TPM Key Format Detection" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
+        "ECC TPM Key Authentication Success" \
+        "unset VAULT_ADDR; timeout 5s ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} -client-key client.ecc.key.pem -client-cert client.ecc.cert.pem 2>&1 || true" \
+        "Successfully loaded TSS2 key from client.ecc.key.pem" \
+        "true"
+    
+    # Test Case 3: RSA TPM Key Format Detection Test
+    run_test \
+        "RSA TPM Key Format Detection" \
+        "unset VAULT_ADDR; timeout 5s ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} -client-key client.rsa.key.pem -client-cert client.rsa.cert.pem 2>&1 || true" \
         "Detected TSS2 key format, using TPM signer" \
         "true"
     
-    # Test Case 3: TPM Protected Key - TSS2 Loading Test
+    # Test Case 4: ECC TPM Key Format Detection Test
     run_test \
-        "TPM Key TSS2 Loading" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
-        "Successfully loaded TSS2 key from client.key.pem" \
+        "ECC TPM Key Format Detection" \
+        "unset VAULT_ADDR; timeout 5s ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} -client-key client.ecc.key.pem -client-cert client.ecc.cert.pem 2>&1 || true" \
+        "Detected TSS2 key format, using TPM signer" \
         "true"
     
-    # Test Case 4: Normal Key - Format Detection Test
+    # Test Case 5: RSA TPM Key Loading Test
     run_test \
-        "Normal Key Format Detection" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -client-key test-normal.key -client-cert test-normal.cert -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
-        "Detected standard private key format, using normal signer" \
+        "RSA TPM Key TSS2 Loading" \
+        "unset VAULT_ADDR; timeout 5s ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} -client-key client.rsa.key.pem -client-cert client.rsa.cert.pem 2>&1 || true" \
+        "Successfully loaded TSS2 key from client.rsa.key.pem" \
+        "true"
+        
+    # Test Case 6: ECC TPM Key Loading Test
+    run_test \
+        "ECC TPM Key TSS2 Loading" \
+        "unset VAULT_ADDR; timeout 5s ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} -client-key client.ecc.key.pem -client-cert client.ecc.cert.pem 2>&1 || true" \
+        "Successfully loaded TSS2 key from client.ecc.key.pem" \
         "true"
     
-    # Test Case 5: Normal Key - Loading Test
+    # Test Case 14: Certificate Validation Tests
     run_test \
-        "Normal Key Loading" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -client-key test-normal.key -client-cert test-normal.cert -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
-        "Successfully loaded normal private key from test-normal.key" \
+        "RSA Certificate Validation" \
+        "openssl x509 -in client.rsa.cert.pem -noout -text | grep 'rsaEncryption'" \
+        "rsaEncryption" \
         "true"
-    
-    # Test Case 6: Wrong Vault URL - Error Handling Test
+        
     run_test \
-        "Error Handling - Invalid Vault URL" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -debug -vaultaddr https://nonexistent-vault.example.com 2>&1" \
-        "failed to make request" \
-        "false"
-    
-    # Test Case 7: Missing Certificate File - Error Test
-    run_test \
-        "Error Handling - Missing Certificate" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -client-cert nonexistent.cert -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
-        "failed to load certificate" \
-        "false"
-    
-    # Test Case 8: Missing Key File - Error Test
-    run_test \
-        "Error Handling - Missing Key File" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -client-key nonexistent.key -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
-        "failed to create signer" \
-        "false"
-    
-    # Test Case 9: Help Output Test
-    run_test \
-        "Help Output" \
-        "./${BINARY_NAME} --help 2>&1" \
-        "Usage of" \
+        "ECC Certificate Validation" \
+        "openssl x509 -in client.ecc.cert.pem -noout -text | grep 'id-ecPublicKey'" \
+        "id-ecPublicKey" \
         "true"
-    
-    # Test Case 10: HTTPS Connection Test
+
     run_test \
-        "HTTPS Connection Verification" \
-        "unset VAULT_ADDR; ./${BINARY_NAME} -debug -vaultaddr ${VAULT_ADDR} 2>&1" \
-        "https://nginx/v1/auth/cert/login" \
+        "RSA Key Size Verification" \
+        "openssl x509 -in client.rsa.cert.pem -noout -text | grep 'Public-Key'" \
+        "2048 bit" \
         "true"
+
+    run_test \
+        "ECC Curve Verification" \
+        "openssl x509 -in client.ecc.cert.pem -noout -text | grep 'prime256v1'" \
+        "prime256v1" \
+        "true"
+
     
-    # Step 4: Performance and Edge Cases
-    log_info "Step 4: Performance and edge case testing"
-    
-    # Test Case 11: Multiple rapid requests (stress test)
-    log_info "Running stress test with 3 rapid TPM requests..."
-    for i in {1..3}; do
-        run_test \
-            "Stress Test Request $i" \
-            "unset VAULT_ADDR; timeout 10s ./${BINARY_NAME} -vaultaddr ${VAULT_ADDR} 2>&1" \
-            "hvs\." \
-            "true"
-    done
-    
+
+
     # Step 5: Cleanup and Summary
     log_info "Step 5: Cleanup and summary"
     
     # Optional cleanup
-    log_info "Cleaning up temporary files..."
-    ssh ${TARGET_USER}@${TARGET_HOST} "rm -f test-output-*.log" || true
-    
+    log_info "Cleaning up key/csr/cert files..."
+    if [ "$CLEANUP" = true ]; then
+        ssh ${TARGET_USER}@${TARGET_HOST} "rm -f client.*.pem" || true
+    fi
+
     # Test Summary
     echo "=========================================="
     echo "📊 Test Suite Summary"

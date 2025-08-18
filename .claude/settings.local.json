@@ -25,9 +25,22 @@
       "Bash(vault write pki/sign/machine-id:*)",
       "Bash(vault write pki_intermediate/sign/machine-id:*)",
       "Bash(unset:*)",
-      "Bash(./vault-tmp-helper:*)"
+      "Bash(./vault-tmp-helper:*)",
+      "Bash(git clean:*)",
+      "Bash(mkdir:*)",
+      "Bash(go vet:*)",
+      "Bash(go fmt:*)",
+      "Bash(chmod:*)",
+      "Bash(./test.sh)",
+      "Bash(./test-simple.sh:*)",
+      "Bash(cp:*)",
+      "Bash(git checkout:*)",
+      "Bash(go test:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "/Users/yuleiliu/unfinished-projects/vault"
+    ]
   }
 }

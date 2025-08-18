@@ -4,7 +4,7 @@ A Go application that performs Vault certificate authentication using TPM-protec
 
 ## Overview
 
-This program uses a Trusted Platform Module (TPM) 2.0 to securely store and use private keys for client certificate authentication when connecting to HTTPS servers. The private key never leaves the TPM hardware, providing enhanced security.
+This program uses a Trusted Platform Module (TPM) 2.0 to securely store and use private keys for client certificate authentication when connecting to HTTPS servers. The private key never leaves the TPM hardware, providing enhanced security. Supports both RSA and ECC key types.
 
 **Note**: The implementation properly loads the existing TSS2-format key from `client.key.pem` and uses it with the corresponding certificate for TPM-backed authentication.
 
@@ -27,8 +27,8 @@ sudo apt install -y tpm2-tools libtpm2-pkcs11-1 libtpm2-pkcs11-dev
 ### File Requirements
 
 The program expects these files to be present:
-- `client.cert.pem` - Client certificate in PEM format
-- `client.key.pem` - Client private key in TSS2 format
+- `client.cert.pem` - Client certificate in PEM format (RSA or ECC)
+- `client.key.pem` - Client private key in TSS2 format (RSA or ECC) or standard PEM format
 
 ## Usage
 
@@ -190,7 +190,7 @@ make deploy
 - Implement proper TSS2 key format loading
 - Add support for existing persistent TPM handles
 - Enhanced error handling and logging
-- Support for different key types (ECC, RSA variants)
+- Support for different key types (additional RSA variants)
 
 ## Support
 
