@@ -19,6 +19,14 @@ import (
 	"github.com/google/go-tpm/tpm2/transport"
 )
 
+// Version information set during build
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	builtBy = "unknown"
+)
+
 type Config struct {
 	TPMPath   string
 	CertPath  string
@@ -38,8 +46,9 @@ type AuthResponse struct {
 
 func main() {
 	config := &Config{}
+	var showVersion bool
 
-	flag.StringVar(&config.TPMPath, "tpm-path", "/dev/tpmrm0", "Path to TPM device")
+	flag.StringVar(&config.TPMPath, "tmp-path", "/dev/tpmrm0", "Path to TPM device")
 	flag.StringVar(&config.CertPath, "client-cert", "client.cert.pem", "Path to client certificate")
 	flag.StringVar(&config.KeyPath, "client-key", "client.key.pem", "Path to client private key")
 	flag.StringVar(&config.ServerURL, "vaultaddr", "", "Vault server URL (optional if VAULT_ADDR env var is set)")
@@ -47,7 +56,16 @@ func main() {
 	flag.StringVar(&config.AuthPath, "authpath", "cert", "Vault authentication path")
 	flag.StringVar(&config.Name, "name", "", "Name parameter for authentication (optional)")
 	flag.BoolVar(&config.Debug, "debug", false, "Enable debug output")
+	flag.BoolVar(&showVersion, "version", false, "Show version information")
 	flag.Parse()
+
+	if showVersion {
+		fmt.Printf("vault-tpm-helper %s\n", version)
+		fmt.Printf("  commit: %s\n", commit)
+		fmt.Printf("  built: %s\n", date)
+		fmt.Printf("  built by: %s\n", builtBy)
+		return
+	}
 
 	// Determine vault URL: VAULT_ADDR env var takes precedence, then vaultaddr flag
 	vaultURL := os.Getenv("VAULT_ADDR")

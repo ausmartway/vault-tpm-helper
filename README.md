@@ -224,11 +224,58 @@ head -1 client.key.pem
 - Always use proper Certificate Authorities for signing certificates
 - TPM provides hardware-based cryptographic operations
 
-## Building
+## Installation
+
+### Download Release Binary
+
+Download the latest release from the [GitHub Releases](../../releases) page:
 
 ```bash
+# Download for Linux x86_64
+curl -L -o vault-tpm-helper https://github.com/USERNAME/vault-tpm-helper/releases/download/v1.0.0/vault-tpm-helper_Linux_x86_64.tar.gz
+
+# Download for Linux ARM64
+curl -L -o vault-tpm-helper https://github.com/USERNAME/vault-tpm-helper/releases/download/v1.0.0/vault-tpm-helper_Linux_arm64.tar.gz
+
+# Extract and install
+tar -xzf vault-tpm-helper_*.tar.gz
+chmod +x vault-tpm-helper
+sudo mv vault-tpm-helper /usr/local/bin/
+```
+
+### Building from Source
+
+```bash
+# Clone repository
+git clone https://github.com/USERNAME/vault-tpm-helper.git
+cd vault-tpm-helper
+
+# Build for current platform
 make build
+
+# Deploy to remote host
 make deploy
+
+# Create release builds for all platforms
+make release-snapshot
+```
+
+### Release Management
+
+```bash
+# Check GoReleaser configuration
+make release-check
+
+# Create snapshot release (development)
+make release-snapshot
+
+# Test release process
+make release-dry-run
+
+# Create and publish release (requires git tag)
+git tag v1.0.0
+git push origin v1.0.0
+make release
 ```
 
 ## Dependencies
