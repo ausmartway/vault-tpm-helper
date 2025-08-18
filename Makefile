@@ -44,11 +44,11 @@ install-goreleaser:
 
 release-check: install-goreleaser
 	@echo "Checking GoReleaser configuration..."
-	goreleaser check
+	GITHUB_USER=$${GITHUB_USER:-$(shell whoami)} goreleaser check
 
 release-snapshot: install-goreleaser clean
 	@echo "Creating snapshot release..."
-	goreleaser build --snapshot --clean
+	GITHUB_USER=$${GITHUB_USER:-$(shell whoami)} goreleaser build --snapshot --clean
 	@echo "Snapshot release created in dist/"
 
 release: install-goreleaser clean
@@ -58,11 +58,11 @@ release: install-goreleaser clean
 		echo "Example: git tag v1.0.0 && git push origin v1.0.0"; \
 		exit 1; \
 	fi
-	goreleaser release --clean
+	GITHUB_USER=$${GITHUB_USER:-$(shell whoami)} goreleaser release --clean
 
 release-dry-run: install-goreleaser
 	@echo "Dry run release..."
-	goreleaser release --snapshot --skip=publish --clean
+	GITHUB_USER=$${GITHUB_USER:-$(shell whoami)} goreleaser release --snapshot --skip=publish --clean
 
 version:
 	@echo "Version: $(VERSION)"

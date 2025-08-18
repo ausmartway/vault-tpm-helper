@@ -35,7 +35,8 @@
       "Bash(./test-simple.sh:*)",
       "Bash(cp:*)",
       "Bash(git checkout:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(goreleaser:*)"
     ],
     "deny": [],
     "ask": [],

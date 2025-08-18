@@ -1,0 +1,2 @@
+aa77d5227e6db0ed3213d8873c27ea0d7ec3858555a92622900b2bed8b3d1e70  vault-tpm-helper_Linux_arm64.tar.gz
+2404a0d1ed8f4bb7eeb0745d101ec10fd638944c56c413a99810f05e9ea8bb7a  vault-tpm-helper_Linux_x86_64.tar.gz

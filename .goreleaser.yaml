@@ -21,9 +21,6 @@ builds:
       - amd64
       - arm64
     # TPM functionality is Linux-specific
-    ignore:
-      - goos: windows
-      - goos: darwin
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
@@ -36,14 +33,10 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
     name_template: >-
-      {{ .ProjectName }}_
-      {{- title .Os }}_
+      {{ .ProjectName }}_Linux_
       {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - README.md
       - CLAUDE.md
@@ -53,7 +46,7 @@ checksum:
   name_template: 'checksums.txt'
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
