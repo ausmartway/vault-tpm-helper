@@ -1,3 +1,4 @@
 vault-tpm-helper
 *.tar.gz
 dist/
+.claude/
