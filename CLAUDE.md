@@ -1,16 +1,20 @@
 # Vault TPM Helper - Project Instructions
 
 ## Project Overview
-This is a Go application that performs Vault certificate authentication using TPM-protected private keys for enhanced security.
+
+This is a Go application that performs Vault certificate authentication using
+TPM-protected private keys for enhanced security.
 
 ## Development Commands
 
 ### Build
+
 ```bash
 make build
 ```
 
 ### Test
+
 ```bash
 make test
 # or
@@ -18,6 +22,7 @@ go test ./...
 ```
 
 ### Run
+
 ```bash
 ./vault-tpm-helper
 # or with debug
@@ -25,6 +30,7 @@ go test ./...
 ```
 
 ### Deploy
+
 ```bash
 make deploy
 ```

@@ -1,10 +1,67 @@
 # Vault TPM Helper
 
-A Go application that performs Vault certificate authentication using TPM-protected private keys.
+A Go application that performs Vault certificate authentication using
+TPM-protected private keys.
+
+## The Problem: Machine Identity for On-Premise Workloads
+
+### The Secret Zero Challenge
+
+Modern applications rely on secret managers like Vault to securely access
+databases, APIs, and other services. However, this creates a fundamental
+challenge: **to use a secret manager, applications need a secret to
+authenticate with the secret manager itself.** This circular dependency is
+known as the "Secret Zero" problem.
+
+Cloud platforms and modern orchestrators have solved this elegantly through
+platform-native identity services:
+
+- AWS IAM roles and instance profiles
+- Kubernetes service accounts  
+- GitHub Actions OIDC tokens
+- Azure managed identities
+
+But what about workloads running on-premise? Or cloud workloads that can't
+leverage these native identity systems?
+
+### Traditional Solutions and Their Limitations
+
+Common approaches for on-premise machine authentication include:
+
+- **LDAP integration** - Requires existing directory infrastructure
+- **Client ID/Secret pairs** (like Vault AppRole) - Still requires
+  distributing secrets
+
+These traditional methods have significant drawbacks:
+
+- Credentials must be stored somewhere on the filesystem (vulnerable to
+  compromise)
+- Manual rotation processes create operational overhead
+- No hardware-backed security guarantees
+
+### TPM: A Hardware-Backed Solution
+
+Trusted Platform Module (TPM) 2.0 provides a mature alternative for secure
+machine identity. TPM is a specialized security chip (or software equivalent)
+that:
+
+- **Securely stores cryptographic keys** that never leave the hardware
+- **Eliminates credential rotation overhead** - TPM keys don't need frequent
+  rotation
+- **Scales efficiently** - A single certificate authority role can
+  authenticate thousands of machines
+- **Works everywhere** - Available as hardware TPM or Virtual TPM (vTPM) in
+  VMware ESXi, Hyper-V, QEMU
+
+This approach is particularly valuable given that a significant portion of
+enterprise workloads still run on virtual machines that lack cloud-native
+identity integration.
 
 ## Overview
 
-This program uses a Trusted Platform Module (TPM) 2.0 to securely store and use private keys for client certificate authentication with Vault. The private key never leaves the TPM hardware, providing enhanced security.
+This program uses a Trusted Platform Module (TPM) 2.0 to securely store and
+use private keys for client certificate authentication with Vault. The private
+key never leaves the TPM hardware, providing enhanced security.
 
 ## Prerequisites
 
@@ -72,7 +129,8 @@ openssl list -providers | grep -i tpm
 ```
 
 You should see output like:
-```
+
+```text
   tpm2
     name: TPM 2.0 Provider
     version: 1.1.0
@@ -81,7 +139,8 @@ You should see output like:
 
 ## Quick Start
 
-**Note**: Make sure OpenSSL is configured with the TPM2 provider (see OpenSSL Configuration section above).
+**Note**: Make sure OpenSSL is configured with the TPM2 provider (see
+OpenSSL Configuration section above).
 
 ### 1. Generate TPM-Backed Key
 
@@ -115,7 +174,8 @@ openssl req \
 
 ### 3. Get Certificate from CA
 
-**Important**: Use a proper Certificate Authority. Never use self-signed certificates in production.
+**Important**: Use a proper Certificate Authority. Never use self-signed
+certificates in production.
 
 With Vault PKI:
 
@@ -141,6 +201,7 @@ vault write -format=json pki/sign/client-cert \
 ```
 
 Uses default files:
+
 - Certificate: `client.cert.pem`
 - Private key: `client.key.pem`
 - Vault URL: from `VAULT_ADDR` environment variable
@@ -224,7 +285,7 @@ head -1 client.key.pem
 - Always use proper Certificate Authorities for signing certificates
 - TPM provides hardware-based cryptographic operations
 
-## Installation
+## Binary Installation
 
 ### Download Release Binary
 
