@@ -3,3 +3,6 @@ vault-tpm-helper
 dist/
 .claude/
 .claude/settings.local.json
+test-keys/
+*.key
+*.pem
